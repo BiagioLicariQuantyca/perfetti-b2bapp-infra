@@ -18,7 +18,8 @@ B2B mobile app ──HTTPS + Bearer token──> API Management ──> Azure Fu
 | State storage | Terraform state of every root | `bootstrap/` (Azure CLI script) |
 | Log Analytics, Application Insights, alerts | observability of the solution | `platform/` |
 | Functions managed identity and its Key Vault access | application identity | `platform/` |
-| API Management, Function App and its storage | API exposure and business logic | application root, to be added |
+| API Management, Function App and its storage, API definition | API exposure and business logic | `workload/` |
+| Test bearer tokens (until Entra External ID is available) | temporary authentication for tests | `tools/test-jwt/` |
 | Key Vault, resource group | existing containers | platform team, read through data sources |
 | Entra External ID | identity of the business partners | outside this repository |
 
@@ -28,10 +29,15 @@ communicate over the public network with Entra ID authentication.
 ## Repository layout
 
 ```
-bootstrap/   script that creates the state storage (see bootstrap/README.md)
-modules/     local Terraform modules, secure by default (see modules/README.md)
-platform/    Terraform root with the shared foundations (see platform/README.md)
+bootstrap/        script that creates the state storage (see bootstrap/README.md)
+modules/          local Terraform modules, secure by default (see modules/README.md)
+platform/         Terraform root with the shared foundations (see platform/README.md)
+workload/         Terraform root with Function App, API Management and the API (see workload/README.md)
+tools/test-jwt/   temporary tools to mint test bearer tokens (see tools/test-jwt/README.md)
+docs/             guide for the developers of the Functions
 ```
+
+The roots are applied in this order: `bootstrap` (once), `platform`, `workload`.
 
 Each root has its own state (`<root>.tfstate`) in the `tfstate-<environment>` container and
 reads the resources of other roots by name, through data sources. Roots can therefore be planned
@@ -44,8 +50,8 @@ Environment-specific values live only in the `envs/` folders:
 | File | Content |
 |---|---|
 | `bootstrap/envs/<environment>.env` | tenant, subscription, resource group, state storage account |
-| `platform/envs/<environment>.tfvars` | subscription, resource group, environment, Key Vault, monitoring settings |
-| `platform/envs/backend-<environment>.hcl` | location of the state |
+| `<root>/envs/<environment>.tfvars` | subscription, resource group, environment, Key Vault and the settings of each root |
+| `<root>/envs/backend-<environment>.hcl` | location of the state |
 
 These files contain identifiers and resource names only: credentials and secrets never go into
 the repository. Declaring the subscription in the `.tfvars` file is also a safeguard: Terraform
@@ -53,9 +59,10 @@ works on that subscription even if the CLI points elsewhere.
 
 ## Conventions
 
-- **Naming**: Cloud Adoption Framework scheme `<type>-<workload>-<environment>-<region>-<instance>`,
-  for example `log-b2bapp-prd-weu-001`. Storage accounts, which do not allow hyphens, use the
-  compact form `st<purpose><workload><environment><region><instance>`.
+- **Naming**: Cloud Adoption Framework scheme `<type>[-<purpose>]-<workload>-<environment>-<region>-<instance>`,
+  for example `log-b2bapp-prd-weu-001` or `func-api-b2bapp-prd-weu-001`. Storage accounts, which
+  do not allow hyphens, use the compact form `st<purpose><workload><environment><region><instance>`,
+  for example `stapib2bappprdweu001`.
 - **Tags**: every resource inherits the company tags of the resource group, read at every plan.
   The root overrides only `description`.
 - **Secrets**: secret values never go through Terraform, because they would be stored in clear
@@ -120,6 +127,10 @@ terraform plan -var-file=envs/prd.tfvars -out=prd.tfplan
 terraform apply prd.tfplan
 ```
 
+**3. `workload` root**: same commands from the `workload` folder. The first deployment needs two
+applies with manual steps in between (function key and test signing key): see
+`workload/README.md`.
+
 Always apply the plan saved with `-out`, after reviewing it: this way exactly what was reviewed
 gets applied. State locking is automatic.
 
@@ -137,8 +148,9 @@ resource group. A dedicated resource group per environment is still the cleanest
 
 ## Updating the provider
 
+In each root (`platform`, `workload`):
+
 ```bash
-cd platform
 terraform init -upgrade
 terraform providers lock -platform=darwin_arm64 -platform=darwin_amd64 \
   -platform=linux_amd64 -platform=linux_arm64 -platform=windows_amd64
