@@ -2,7 +2,7 @@
 
 The shared foundations of the solution: monitoring, alerting, the identity of the Azure
 Functions and its access to the Key Vault. Application resources (API Management and Function
-App) live in a separate root and find these resources by name through data sources.
+App) live in the `workload` root and find these resources by name through data sources.
 
 The state is stored in `platform.tfstate`, in the `tfstate-<environment>` container.
 
@@ -65,11 +65,17 @@ show the telemetry from the Function App). It is available in the sensitive outp
 
 ## Functions managed identity
 
-`id-func-b2bapp-prd-weu-001` is user-assigned: it exists before the Function App, so its access
-is already in place when the app is created.
+`id-func-b2bapp-prd-weu-001` is user-assigned: it exists independently of the Function Apps and
+can be shared by them.
 
-- It is assigned to the Function App and set as `keyVaultReferenceIdentity`, so Key Vault
-  references in the app settings use this identity instead of the system-assigned one.
+- It is attached to the Function App of the `workload` root and is available to the application
+  code, for example with the Azure SDK (`DefaultAzureCredential` with its client ID).
+- Once role assignments are possible, it is the identity for identity-based connections to the
+  storage of the Function App, replacing the connection string.
+- Key Vault references in the app settings are resolved by the **system-assigned** identity of
+  the Function App, the default behaviour: the `azurerm` resource for Flex Consumption doesn't
+  expose the setting that selects another identity. Its Key Vault access is granted in the
+  `workload` root.
 - It has no federated credentials.
 - Access granted today: reading secrets on the Key Vault (see below).
 - `client_id` and `principal_id` are in the `identities` output.
@@ -94,7 +100,8 @@ Vault configuration at the time of writing:
 
 | Identity | Secret permissions | Where it is defined |
 |---|---|---|
-| `id-func-b2bapp-prd-weu-001` (Functions) | `Get` | this root (`key_vault.tf`) |
+| `id-func-b2bapp-prd-weu-001` (Functions, application code) | `Get` | this root (`key_vault.tf`) |
+| System-assigned identity of the Function App (Key Vault references) | `Get` | the `workload` root |
 | System-assigned identity of API Management | `Get`, `List` | the API Management root, when the instance is created |
 
 Existing access policies (for example those of team members) are not managed by Terraform and

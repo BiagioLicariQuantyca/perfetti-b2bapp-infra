@@ -1,6 +1,7 @@
-# User-assigned managed identity of the Azure Functions. It exists before the Function App,
-# so its Key Vault access is already in place when the app is created and Key Vault
-# references resolve immediately (the Function App uses it as `keyVaultReferenceIdentity`).
+# User-assigned managed identity of the Azure Functions, independent of their lifecycle. It is
+# available to the application code (Azure SDK) and, once role assignments are possible, to
+# identity-based storage connections. Key Vault references in the app settings are resolved by
+# the system-assigned identity of each Function App (see the workload root).
 module "id_func" {
   source = "../modules/user-assigned-identity"
 

@@ -10,8 +10,8 @@ data "azurerm_key_vault" "this" {
   resource_group_name = data.azurerm_resource_group.this.name
 }
 
-# Azure Functions: read secrets through Key Vault references in the app settings.
-# "Get" is enough: references read one secret at a time and never list the vault.
+# Azure Functions identity: reads secrets from the application code (Azure SDK).
+# "Get" is enough: the code reads one secret at a time and never lists the vault.
 resource "azurerm_key_vault_access_policy" "func" {
   key_vault_id = data.azurerm_key_vault.this.id
   tenant_id    = data.azurerm_key_vault.this.tenant_id
