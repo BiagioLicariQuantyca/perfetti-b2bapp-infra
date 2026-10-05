@@ -65,3 +65,45 @@ tokens for the identity must be an explicit decision.
 
 Outputs: `id`, `name`, `principal_id` (object ID, used to grant access), `client_id` (used by
 applications).
+
+## `function-app-flex`
+
+Function App on the Flex Consumption plan, with a dedicated storage account (as Microsoft
+recommends for production), the deployment container and the storage logs. Optional lock on the
+Function App.
+
+| Setting | Value | Kind |
+|---|---|---|
+| Plan | Flex Consumption (`FC1`, Linux), one app per plan | fixed |
+| Storage authentication | connection string from the account key, for both host storage and deployment container | fixed |
+| Storage account | StorageV2, TLS 1.2, HTTPS only, no anonymous access, no cross-tenant replication | fixed |
+| `storage_replication_type` | `LRS` | default |
+| `storage_shared_key_enabled` | `true`: required by the connection string authentication | default |
+| Deployment container | `app-package`, private | fixed |
+| Storage logs | `StorageWrite` of the blob service to `log_analytics_workspace_id` | optional |
+| HTTPS only, minimum TLS (site and deployment endpoint) | yes, 1.2 | fixed |
+| Basic authentication for deployments | disabled | fixed |
+| Identity | system-assigned (Key Vault references) plus `user_assigned_identity_ids` | fixed / input |
+| `runtime` | required, for example `dotnet-isolated` `10.0` or `python` `3.13` | input |
+| `instance_memory_in_mb` | 2048 (512, 2048 or 4096) | default |
+| `maximum_instance_count` | 100 (1-1000) | default |
+| `always_ready_http_instances` | 0 | default |
+| `name` | at most 32 characters, to avoid host ID collisions | validated |
+
+Outputs: `id`, `name`, `default_hostname`, `principal_id` (system-assigned identity),
+`storage_account_id`, `storage_account_name`.
+
+## `api-management`
+
+API Management instance with a system-assigned identity and request telemetry in Application
+Insights. Optional lock.
+
+| Setting | Value | Kind |
+|---|---|---|
+| `sku_name` | `Consumption_0` | default |
+| Identity | system-assigned: reads named values of type Key vault | fixed |
+| Telemetry | Application Insights logger and service diagnostic, created when `application_insights_id` is set | optional |
+| Diagnostic | no client IP addresses, no request or response bodies, errors always logged, W3C correlation | fixed |
+| `telemetry_sampling_percentage` | 100 | default |
+
+Outputs: `id`, `name`, `gateway_url`, `principal_id`, `tenant_id`.
