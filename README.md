@@ -110,21 +110,43 @@ provider environment variables.
 
 The backend uses the same identity.
 
+## Environments
+
+| Environment | Purpose | Notes |
+|---|---|---|
+| `dev` | development and tests, by the team and by the developers of the mobile app | test tokens; Salesforce sandbox |
+| `prd` | production | |
+
+All environments live in the same resource group and use the same Key Vault. Secrets of a
+single environment end with its name (for example `salesforce-client-secret-dev` or
+`apim-function-key-dev`); the production function key is `apim-function-key`, and the test
+signing key `jwt-test-signing-key` is shared by the environments that accept test tokens. Each
+environment has its own
+state container (`tfstate-<environment>`) in the same state storage account, and its own
+resources: names include the environment, for example `apim-b2bapp-dev-weu-001`.
+
 ## Usage
+
+Set the environment once and use it for both the backend and the variables, so that they always
+match:
+
+```bash
+ENV=dev   # or prd
+```
 
 **1. State storage**: once per environment.
 
 ```bash
-./bootstrap/bootstrap-state.sh prd
+./bootstrap/bootstrap-state.sh $ENV
 ```
 
 **2. `platform` root.**
 
 ```bash
 cd platform
-terraform init -backend-config=envs/backend-prd.hcl
-terraform plan -var-file=envs/prd.tfvars -out=prd.tfplan
-terraform apply prd.tfplan
+terraform init -reconfigure -backend-config=envs/backend-$ENV.hcl
+terraform plan -var-file=envs/$ENV.tfvars -out=$ENV.tfplan
+terraform apply $ENV.tfplan
 ```
 
 **3. `workload` root**: same commands from the `workload` folder. The first deployment needs two
@@ -134,14 +156,19 @@ applies with manual steps in between (function key and test signing key): see
 Always apply the plan saved with `-out`, after reviewing it: this way exactly what was reviewed
 gets applied. State locking is automatic.
 
+> `-reconfigure` switches the folder to the state of `$ENV`. If a plan wants to destroy or replace
+> resources of another environment, the backend and the variable file don't match: stop and run
+> `terraform init` again.
+
 ## Adding an environment
 
-1. Create `bootstrap/envs/dev.env` and run `./bootstrap/bootstrap-state.sh dev`, which creates
-   the `tfstate-dev` container.
-2. In each root, create `envs/dev.tfvars` (with `environment = "dev"`) and
-   `envs/backend-dev.hcl` (with `container_name = "tfstate-dev"`).
-3. Run `terraform init -reconfigure -backend-config=envs/backend-dev.hcl`, then plan and apply
-   with `-var-file=envs/dev.tfvars`.
+For example `tst`:
+
+1. Create `bootstrap/envs/tst.env` and run `./bootstrap/bootstrap-state.sh tst`, which creates
+   the `tfstate-tst` container.
+2. In each root, create `envs/tst.tfvars` (with `environment = "tst"`) and
+   `envs/backend-tst.hcl` (with `container_name = "tfstate-tst"`).
+3. With `ENV=tst`, run the commands of the Usage section.
 
 Resource names include the environment, so different environments can coexist in the same
 resource group. A dedicated resource group per environment is still the cleanest separation.

@@ -5,13 +5,19 @@ described in `workload/README.md`.
 
 ## Where the code runs
 
+Develop and test on **dev**; deploy to **prd** only the releases meant for production.
+
+| Item | dev | prd |
+|---|---|---|
+| Function App (Flex Consumption, Linux) | `func-api-b2bapp-dev-weu-001` | `func-api-b2bapp-prd-weu-001` |
+| Public URL for clients | `https://apim-b2bapp-dev-weu-001.azure-api.net/b2bapp/v1/<route>` | `https://apim-b2bapp-prd-weu-001.azure-api.net/b2bapp/v1/<route>` |
+| Function URL (not for clients) | `https://func-api-b2bapp-dev-weu-001.azurewebsites.net/api/<route>` | `https://func-api-b2bapp-prd-weu-001.azurewebsites.net/api/<route>` |
+| Salesforce | sandbox | production org |
+
 | Item | Value |
 |---|---|
-| Function App | `func-api-b2bapp-prd-weu-001` (Flex Consumption, Linux) |
-| Resource group, subscription, tenant | see `workload/envs/prd.tfvars` and `bootstrap/envs/prd.env` |
+| Resource group, subscription, tenant | see `workload/envs/<environment>.tfvars` and `bootstrap/envs/<environment>.env` |
 | Runtime | .NET 10, isolated worker model (`function_runtime` in the tfvars) |
-| Public URL for clients | `https://apim-b2bapp-prd-weu-001.azure-api.net/b2bapp/v1/<route>` |
-| Function URL (not for clients) | `https://func-api-b2bapp-prd-weu-001.azurewebsites.net/api/<route>` |
 
 Clients never call the Function App directly. API Management validates the bearer token, then
 forwards the request adding the `x-functions-key` header. A request to
@@ -80,7 +86,7 @@ application team.
   The code reads `MY_SECRET` as a normal environment variable. Write the secret value with
   `az keyvault secret set`, never in code, in tfvars or in `local.settings.json` committed to Git.
 - **Identity for Azure SDKs**: the app has the user-assigned identity
-  `id-func-b2bapp-prd-weu-001`, which can read Key Vault secrets. To use it with
+  `id-func-b2bapp-<environment>-weu-001`, which can read Key Vault secrets. To use it with
   `DefaultAzureCredential`, pass its client ID (`identities` output of the `platform` root).
 - **Telemetry** goes to Application Insights automatically. Don't log personal data (names, VAT
   numbers, tokens).
@@ -112,15 +118,15 @@ az login --tenant <tenant-id>
 az account set --subscription <subscription-id>
 ```
 
-Then use one of these:
+Then use one of these (shown for dev; for a production release use `func-api-b2bapp-prd-weu-001`):
 
 ```bash
 # Core Tools, from the project folder: builds, packages and deploys
-func azure functionapp publish func-api-b2bapp-prd-weu-001
+func azure functionapp publish func-api-b2bapp-dev-weu-001
 
 # Azure CLI, with a zip of the build output (for .NET, the content of the publish folder)
 az functionapp deployment source config-zip -g <resource-group> \
-  -n func-api-b2bapp-prd-weu-001 --src <package.zip>
+  -n func-api-b2bapp-dev-weu-001 --src <package.zip>
 ```
 
 Visual Studio Code (Azure Functions extension, "Deploy to Function App") also works.
@@ -146,7 +152,7 @@ Until Entra External ID is available, call the API with test tokens:
 
 ```bash
 TOKEN=$(tools/test-jwt/mint-token.sh --vault <key-vault-name>)
-curl -H "Authorization: Bearer $TOKEN" https://apim-b2bapp-prd-weu-001.azure-api.net/b2bapp/v1/<route>
+curl -H "Authorization: Bearer $TOKEN" https://apim-b2bapp-dev-weu-001.azure-api.net/b2bapp/v1/<route>
 ```
 
 Test tokens reach the **production** environment and real data: use them carefully.

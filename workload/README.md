@@ -124,49 +124,54 @@ policy**.
 
 ## Deployment procedure
 
-Prerequisites: the `platform` root applied, and the permissions listed in the main README.
+Prerequisites: the `platform` root applied for the same environment, and the permissions listed
+in the main README. The commands use `ENV` for the environment (`dev` or `prd`).
 
 ### 1. First apply
 
 ```bash
+ENV=dev
 cd workload
-terraform init -backend-config=envs/backend-prd.hcl
-terraform plan -var-file=envs/prd.tfvars -out=prd.tfplan
-terraform apply prd.tfplan
+terraform init -reconfigure -backend-config=envs/backend-$ENV.hcl
+terraform plan -var-file=envs/$ENV.tfvars -out=$ENV.tfplan
+terraform apply $ENV.tfplan
 ```
 
 This creates the Function App, API Management (creation can take several minutes) and the API.
-With `jwt_validation = null` and `function_key_secret_name = null`, the API answers 401 to
-every request.
+With `function_key_secret_name = null` the Function App rejects the requests forwarded by API
+Management; with `jwt_validation = null` API Management answers 401 to every request.
 
 ### 2. Manual steps
 
 These values are secrets and never go through Terraform.
 
 **Function key used by API Management.** A dedicated host key, separate from the default
-one, can be rotated without affecting other callers:
+one, can be rotated without affecting other callers. The secret name is
+`apim-function-key-<environment>` (`apim-function-key` in production):
 
 ```bash
-RG=<resource-group>; APP=func-api-b2bapp-prd-weu-001; KV=<key-vault-name>
+RG=<resource-group>; KV=<key-vault-name>
+APP=func-api-b2bapp-$ENV-weu-001; SECRET=apim-function-key-$ENV   # production: apim-function-key
 tmp=$(mktemp)
 az functionapp keys set -g "$RG" -n "$APP" --key-type functionKeys --key-name apim --output none
 az functionapp keys list -g "$RG" -n "$APP" --query functionKeys.apim -o tsv | tr -d '\r\n' > "$tmp"
-az keyvault secret set --vault-name "$KV" --name apim-function-key --file "$tmp" --output none
+az keyvault secret set --vault-name "$KV" --name "$SECRET" --file "$tmp" --output none
 rm -f "$tmp"
 ```
 
 `az keyvault secret set --file` stores the file content as is, so the trailing newline added by
 `-o tsv` is removed first: with it, the header sent to the Function App would not match the key.
 
-**Test token signing key** (until Entra External ID is available): run
+**Test token signing key** (until Entra External ID is available, and only if it doesn't exist
+yet: it is shared by the environments that accept test tokens): run
 `tools/test-jwt/create-signing-key.sh --vault <key-vault-name>` and copy the printed modulus.
 
 ### 3. Second apply
 
-In `envs/prd.tfvars` set:
+In `envs/$ENV.tfvars` set the secret name and, if not set yet, the test token validation:
 
 ```hcl
-function_key_secret_name = "apim-function-key"
+function_key_secret_name = "apim-function-key-dev"
 
 jwt_validation = {
   issuers      = ["urn:b2bapp:test-issuer"]
@@ -196,10 +201,11 @@ curl -i -H "Authorization: Bearer $TOKEN" "$(terraform -chdir=workload output -r
   version of the same secret, let API Management pick it up, then delete the old key.
 
   ```bash
+  # RG, KV, APP and SECRET as in the manual steps of the deployment procedure
   tmp=$(mktemp)
   az functionapp keys set -g "$RG" -n "$APP" --key-type functionKeys --key-name apim-2 --output none
   az functionapp keys list -g "$RG" -n "$APP" --query '"functionKeys"."apim-2"' -o tsv | tr -d '\r\n' > "$tmp"
-  az keyvault secret set --vault-name "$KV" --name apim-function-key --file "$tmp" --output none
+  az keyvault secret set --vault-name "$KV" --name "$SECRET" --file "$tmp" --output none
   rm -f "$tmp"
   # Refresh the func-api-key named value from the portal, or wait up to 4 hours, then:
   az functionapp keys delete -g "$RG" -n "$APP" --key-type functionKeys --key-name apim

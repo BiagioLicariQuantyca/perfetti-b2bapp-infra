@@ -1,6 +1,6 @@
 subscription_id     = "2fca6156-efd9-4da0-8ec1-ee5e8c7223e8"
 resource_group_name = "weu-ita-lms-rg-p"
-environment         = "prd"
+environment         = "dev"
 
 key_vault_name = "weu-ita-lms-kv"
 
@@ -21,12 +21,12 @@ function_always_ready_http_instances = 0
 
 # Non-secret values and Key Vault references only. The Key Vault is shared with the other
 # environments: suffix the secret names with the environment, for example:
-#   SALESFORCE_BASE_URL      = "https://<instance>.my.salesforce.com"
-#   SALESFORCE_CLIENT_SECRET = "@Microsoft.KeyVault(SecretUri=https://weu-ita-lms-kv.vault.azure.net/secrets/salesforce-client-secret-prd)"
+#   SALESFORCE_BASE_URL      = "https://<sandbox>.sandbox.my.salesforce.com"
+#   SALESFORCE_CLIENT_SECRET = "@Microsoft.KeyVault(SecretUri=https://weu-ita-lms-kv.vault.azure.net/secrets/salesforce-client-secret-dev)"
 function_app_settings = {}
 
 # Key Vault secret holding the "apim" host key of the Function App.
-function_key_secret_name = "apim-function-key"
+function_key_secret_name = "apim-function-key-dev"
 
 # --- API ---
 api_max_concurrency         = 20
