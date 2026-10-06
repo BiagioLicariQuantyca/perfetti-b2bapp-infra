@@ -228,8 +228,8 @@ jwt_validation = {
 ```
 
 API Management reads the signing keys and the issuer from the configuration endpoint and
-refreshes them every hour. Then delete the `jwt-test-signing-key` secret from Key Vault and the
-`tools/test-jwt` folder.
+refreshes them every hour. Then delete the `jwt-test-signing-key` secret from Key Vault, the
+`tools/test-jwt` folder and `docs/test-tokens.md`.
 
 ### Wildcard operations → OpenAPI import
 

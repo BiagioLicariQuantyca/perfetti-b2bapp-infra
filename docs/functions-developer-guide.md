@@ -150,6 +150,7 @@ curl -H "Authorization: Bearer $TOKEN" https://apim-b2bapp-prd-weu-001.azure-api
 ```
 
 Test tokens reach the **production** environment and real data: use them carefully.
+Prerequisites, options, local use, rules and troubleshooting are in `docs/test-tokens.md`.
 
 ## Troubleshooting
 

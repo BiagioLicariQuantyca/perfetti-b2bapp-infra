@@ -11,6 +11,9 @@ the Functions can already use the final authentication flow.
 > Test tokens grant access to the **production** API and therefore to real data. Share them
 > only within the team and keep their lifetime short.
 
+This page describes the tools and their administration. The developers' guide to getting and
+using test tokens is `docs/test-tokens.md`.
+
 ## How it works
 
 | Element | Where it lives |

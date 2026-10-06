@@ -34,7 +34,7 @@ modules/          local Terraform modules, secure by default (see modules/README
 platform/         Terraform root with the shared foundations (see platform/README.md)
 workload/         Terraform root with Function App, API Management and the API (see workload/README.md)
 tools/test-jwt/   temporary tools to mint test bearer tokens (see tools/test-jwt/README.md)
-docs/             guide for the developers of the Functions
+docs/             guides for the developers of the Functions (development, test tokens)
 ```
 
 The roots are applied in this order: `bootstrap` (once), `platform`, `workload`.
