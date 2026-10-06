@@ -8,8 +8,9 @@ API Management validates test tokens exactly as it will validate Entra tokens (R
 issuer, audience, expiry), and forwards the `Authorization` header unchanged to the Function
 App: the code that reads the token works the same way today and after the switch.
 
-> Test tokens reach the **production** API and therefore **real Salesforce data**. Treat them as
-> credentials and follow the [rules](#rules) below.
+> Test tokens are accepted only by the **dev** environment, connected to the Salesforce sandbox.
+> Production accepts only Entra External ID tokens and, until then, rejects every request. Treat
+> tokens as credentials anyway and follow the [rules](#rules).
 
 ## What a test token contains
 
@@ -32,14 +33,14 @@ changes.
 2. **Tools**: `bash`, `openssl` and the Azure CLI (`az`); `jq` is optional, to read the claims.
    On Windows, use Git Bash or WSL, and sign in with `az` from the same shell.
 3. **Sign-in** to the tenant of the solution with your own account (the tenant ID is in
-   `bootstrap/envs/prd.env`):
+   `bootstrap/envs/<environment>.env`):
 
    ```bash
    az login --tenant <tenant-id>
    ```
 
 4. **Read access to the Key Vault secrets**. The Key Vault name is `key_vault_name` in
-   `workload/envs/prd.tfvars`. Check your access:
+   `workload/envs/<environment>.tfvars`. Check your access:
 
    ```bash
    az keyvault secret show --vault-name <key-vault-name> --name jwt-test-signing-key --query id -o tsv
@@ -65,7 +66,7 @@ deletes the folder on exit: the key is never stored on your machine.
 
 | Option | Default | Use |
 |---|---|---|
-| `--hours N` | 8 | lifetime, from 1 to 24 hours. Keep it as short as your test allows |
+| `--hours N` | 8 | lifetime, from 1 to 168 hours (7 days). Keep it as short as your test allows: more than 24 hours only for tokens handed to the developers of the mobile app |
 | `--sub VALUE` | random UUID | stable user identifier, to simulate the same user across tokens. Allowed characters: letters, digits and `: / . _ @ -` |
 
 `--kid`, `--issuer` and `--audience` exist only to match a different API Management
@@ -73,15 +74,16 @@ configuration: don't change them for normal tests.
 
 ## Call the API
 
-The base URL is `https://apim-b2bapp-prd-weu-001.azure-api.net/b2bapp/v1` (output
-`api_base_url` of the `workload` root). API Management maps every route to the Function App:
+The base URL of dev is `https://apim-b2bapp-dev-weu-001.azure-api.net/b2bapp/v1` (output
+`api_base_url` of the `workload` root). API Management maps every route to the Function App of
+the same environment:
 
 ```
-https://apim-b2bapp-prd-weu-001.azure-api.net/b2bapp/v1/<route>  ──>  https://<function-app>/api/<route>
+https://apim-b2bapp-dev-weu-001.azure-api.net/b2bapp/v1/<route>  ──>  https://func-api-b2bapp-dev-weu-001.azurewebsites.net/api/<route>
 ```
 
 ```bash
-URL=https://apim-b2bapp-prd-weu-001.azure-api.net/b2bapp/v1
+URL=https://apim-b2bapp-dev-weu-001.azure-api.net/b2bapp/v1
 curl -i -H "Authorization: Bearer $TOKEN" "$URL/<route>"
 curl -i -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"field":"value"}' "$URL/<route>"
@@ -136,8 +138,9 @@ that record is rejected.
 
 - **Tokens are credentials**: never commit them, never paste them in chats, tickets or
   documents, never write them to logs.
-- **Short lifetime**: use the shortest `--hours` value that works for your test, and `--hours 1`
-  when a token must be handed to someone else.
+- **Short lifetime**: use the shortest `--hours` value that works for your test. Tokens for the
+  developers of the mobile app can last up to 168 hours (7 days), with a different `--sub` for
+  each person.
 - **A token can't be revoked on its own**: it stays valid until it expires. If a token leaks,
   tell whoever manages the infrastructure: the only way to invalidate it is to rotate the
   signing key, which invalidates every test token.

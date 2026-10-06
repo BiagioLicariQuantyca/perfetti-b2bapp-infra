@@ -12,7 +12,7 @@
 #   --issuer VALUE       iss claim (default urn:b2bapp:test-issuer)
 #   --audience VALUE     aud claim (default api://b2bapp-test)
 #   --sub VALUE          sub claim (default: a random UUID for every token)
-#   --hours N            validity in hours, 1-24 (default 8)
+#   --hours N            validity in hours, 1-168 (default 8)
 #
 # Requires: openssl, and az (signed in, with permission to read secrets) when using --vault.
 
@@ -49,7 +49,7 @@ done
 [[ -n "$VAULT" || -n "$KEY_FILE" ]] || usage
 require openssl
 
-[[ "$HOURS" =~ ^[0-9]+$ ]] && (( HOURS >= 1 && HOURS <= 24 )) || { echo "--hours must be between 1 and 24" >&2; exit 1; }
+[[ "$HOURS" =~ ^[0-9]+$ ]] && (( HOURS >= 1 && HOURS <= 168 )) || { echo "--hours must be between 1 and 168" >&2; exit 1; }
 
 # The default subject is an opaque random identifier, never a person's name.
 if [[ -z "$SUB" ]]; then

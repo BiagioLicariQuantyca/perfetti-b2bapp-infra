@@ -12,6 +12,7 @@ Develop and test on **dev**; deploy to **prd** only the releases meant for produ
 | Function App (Flex Consumption, Linux) | `func-api-b2bapp-dev-weu-001` | `func-api-b2bapp-prd-weu-001` |
 | Public URL for clients | `https://apim-b2bapp-dev-weu-001.azure-api.net/b2bapp/v1/<route>` | `https://apim-b2bapp-prd-weu-001.azure-api.net/b2bapp/v1/<route>` |
 | Function URL (not for clients) | `https://func-api-b2bapp-dev-weu-001.azurewebsites.net/api/<route>` | `https://func-api-b2bapp-prd-weu-001.azurewebsites.net/api/<route>` |
+| Bearer tokens accepted | test tokens (`docs/test-tokens.md`) | Entra External ID only: until then, every request gets 401 |
 | Salesforce | sandbox | production org |
 
 | Item | Value |

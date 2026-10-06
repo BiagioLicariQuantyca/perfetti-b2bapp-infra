@@ -114,8 +114,8 @@ The backend uses the same identity.
 
 | Environment | Purpose | Notes |
 |---|---|---|
-| `dev` | development and tests, by the team and by the developers of the mobile app | test tokens; Salesforce sandbox |
-| `prd` | production | |
+| `dev` | development and tests, by the team and by the developers of the mobile app | accepts test tokens; Salesforce sandbox |
+| `prd` | production | accepts only Entra External ID tokens: until then, every request gets 401 |
 
 All environments live in the same resource group and use the same Key Vault. Secrets of a
 single environment end with its name (for example `salesforce-client-secret-dev` or

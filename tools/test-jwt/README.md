@@ -8,8 +8,9 @@ the Functions can already use the final authentication flow.
 > **Remove this folder, the test signing key in API Management and the Key Vault secret when
 > switching to Entra External ID** (see `workload/README.md`).
 
-> Test tokens grant access to the **production** API and therefore to real data. Share them
-> only within the team and keep their lifetime short.
+> Test tokens are accepted only by the environments configured for them: today only dev, which
+> uses the Salesforce sandbox. Share them only within the team and with the developers of the
+> mobile app, and keep their lifetime short.
 
 This page describes the tools and their administration. The developers' guide to getting and
 using test tokens is `docs/test-tokens.md`.
@@ -29,7 +30,7 @@ Default claims:
 | `iss` | `urn:b2bapp:test-issuer` |
 | `aud` | `api://b2bapp-test` |
 | `sub` | random UUID for every token (override with `--sub`) |
-| `iat`, `nbf`, `exp` | now, now, now + 8 hours (1-24 hours with `--hours`) |
+| `iat`, `nbf`, `exp` | now, now, now + 8 hours (1-168 hours with `--hours`) |
 | header `kid` | `test-1`, matching the key id configured in API Management |
 
 ## Prerequisites
@@ -63,7 +64,7 @@ TOKEN=$(./mint-token.sh --vault <key-vault-name>)
 curl -H "Authorization: Bearer $TOKEN" https://<api-management>.azure-api.net/b2bapp/v1/<route>
 ```
 
-Options: `--sub <value>` for a stable subject across tokens, `--hours <1-24>` for the
+Options: `--sub <value>` for a stable subject across tokens, `--hours <1-168>` for the
 lifetime, `--kid`, `--issuer`, `--audience` to match a different configuration.
 
 `--key-file <private-key.pem>` mints a token with a local key, without Key Vault: useful only to

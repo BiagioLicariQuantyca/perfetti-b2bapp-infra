@@ -168,7 +168,8 @@ yet: it is shared by the environments that accept test tokens): run
 
 ### 3. Second apply
 
-In `envs/$ENV.tfvars` set the secret name and, if not set yet, the test token validation:
+In `envs/$ENV.tfvars` set the secret name and, only in the environments that accept test tokens
+(today dev) and if not set yet, the test token validation:
 
 ```hcl
 function_key_secret_name = "apim-function-key-dev"
