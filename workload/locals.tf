@@ -5,10 +5,11 @@ locals {
   compact_suffix = "${var.workload}${var.environment}${var.region_short}${var.instance}"
 
   names = {
-    apim          = "apim-${local.name_suffix}"
-    func_api      = "func-api-${local.name_suffix}"
-    plan_func_api = "asp-api-${local.name_suffix}"
-    st_func_api   = "stapi${local.compact_suffix}"
+    apim             = "apim-${local.name_suffix}"
+    func_api         = "func-api-${local.name_suffix}"
+    plan_func_api    = "asp-api-${local.name_suffix}"
+    st_func_api      = "stapi${local.compact_suffix}"
+    alert_api_errors = "alert-apim5xx-${local.name_suffix}"
   }
 
   # Resources of the platform root, found by name.

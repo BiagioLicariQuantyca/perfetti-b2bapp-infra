@@ -83,14 +83,30 @@ resource "azurerm_api_management_api_operation" "wildcard" {
   url_template        = "/*"
 }
 
+# --- Policies ---
+# Two scopes. The global policy (all APIs) validates the bearer token and limits concurrency
+# and duration towards the backend, so every API, present or future, is protected by default.
+# The API policy only routes to the backend and starts every section with <base /> to inherit
+# the global one.
+resource "azurerm_api_management_policy" "global" {
+  api_management_id = module.apim.id
+
+  xml_content = templatefile("${path.module}/policies/global.xml.tftpl", {
+    jwt                     = var.jwt_validation
+    max_concurrency         = var.api_max_concurrency
+    backend_timeout_seconds = var.api_backend_timeout_seconds
+  })
+}
+
 resource "azurerm_api_management_api_policy" "this" {
   api_name            = azurerm_api_management_api.this.name
   api_management_name = module.apim.name
   resource_group_name = data.azurerm_resource_group.this.name
 
   xml_content = templatefile("${path.module}/policies/api.xml.tftpl", {
-    jwt             = var.jwt_validation
-    backend_id      = azurerm_api_management_backend.func_api.name
-    max_concurrency = var.api_max_concurrency
+    backend_id = azurerm_api_management_backend.func_api.name
   })
+
+  # The global policy must be in place before the API can be reached.
+  depends_on = [azurerm_api_management_policy.global]
 }

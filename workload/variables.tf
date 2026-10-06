@@ -133,15 +133,27 @@ variable "api_version" {
   default     = "v1"
 }
 
+variable "api_backend_timeout_seconds" {
+  description = "Seconds API Management waits for the Function App response. Keep it below the 30-second request limit of the Consumption tier."
+  type        = number
+  default     = 25
+
+  validation {
+    condition     = var.api_backend_timeout_seconds >= 1 && var.api_backend_timeout_seconds <= 29
+    error_message = "api_backend_timeout_seconds must be between 1 and 29."
+  }
+}
+
 variable "api_max_concurrency" {
-  description = "Maximum concurrent requests forwarded to the Function App (limit-concurrency policy). Excess requests receive 429."
+  description = "Maximum concurrent requests forwarded to the backend of each API (limit-concurrency policy). Excess requests receive 429."
   type        = number
   default     = 20
 }
 
 variable "jwt_validation" {
   description = <<-EOT
-    Bearer token validation. null = every request is rejected with 401 (closed by default).
+    Bearer token validation, applied in the global policy to every API. null = every request is
+    rejected with 401 (closed by default).
     Test tokens: signing_keys with the public key of the test key pair.
     Entra External ID: openid_config_url of the external tenant and the API audience.
     required_claims: claims the token must contain, for example the scp scope with separator " ".
@@ -173,4 +185,18 @@ variable "jwt_validation" {
     condition     = var.jwt_validation == null || try(var.jwt_validation.openid_config_url != null || length(var.jwt_validation.signing_keys) > 0, false)
     error_message = "jwt_validation needs openid_config_url or at least one signing key."
   }
+}
+
+# --- Alerts ---
+
+variable "alert_api_server_errors_threshold" {
+  description = "Number of API Management responses with a 5xx status in 15 minutes above which the alert fires."
+  type        = number
+  default     = 5
+}
+
+variable "alert_action_group_name" {
+  description = "Existing action group (for example the one of the platform root) notified by the alerts of this root. null = alerts visible in the portal only."
+  type        = string
+  default     = null
 }

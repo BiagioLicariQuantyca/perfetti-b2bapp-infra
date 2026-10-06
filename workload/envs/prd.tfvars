@@ -28,7 +28,8 @@ function_app_settings = {}
 function_key_secret_name = null
 
 # --- API ---
-api_max_concurrency = 20
+api_max_concurrency         = 20
+api_backend_timeout_seconds = 25
 
 # Bearer token validation. null = every request is rejected with 401.
 # Test tokens (until Entra External ID is available), after running tools/test-jwt/create-signing-key.sh:
@@ -38,3 +39,8 @@ api_max_concurrency = 20
 #     signing_keys = [{ id = "test-1", n = "<modulus printed by the script>" }]
 #   }
 jwt_validation = null
+
+# --- Alerts ---
+alert_api_server_errors_threshold = 5
+# Action group to notify, for example the one of the platform root once it has recipients.
+alert_action_group_name = null
