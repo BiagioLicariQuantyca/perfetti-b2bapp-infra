@@ -11,11 +11,14 @@ The state is stored in `workload.tfstate`, in the `tfstate-<environment>` contai
 ```
 Mobile app ── HTTPS, Authorization: Bearer <token> ──> API Management
    https://apim-b2bapp-prd-weu-001.azure-api.net/b2bapp/v1/<route>
-      1. validate-jwt: signature, issuer, audience, expiry (401 if invalid)
-      2. limit-concurrency: at most api_max_concurrency requests in flight (429 beyond)
-      3. forward with header x-functions-key (function key read from Key Vault)
+      1. global policy, inbound: validate-jwt (signature, issuer, audience, expiry; 401 if invalid)
+      2. API policy, inbound: route to the func-api backend
+      3. global policy, backend: limit-concurrency (at most api_max_concurrency requests in
+         flight per API, 429 beyond) and forward with a timeout of api_backend_timeout_seconds,
+         adding the x-functions-key header (function key read from Key Vault)
           ──> Function App  https://func-api-b2bapp-prd-weu-001.azurewebsites.net/api/<route>
-                 functions with AuthorizationLevel.Function (401 without a valid key)
+                 functions with AuthorizationLevel.Function (401 without a valid key);
+                 the original Authorization header is forwarded unchanged
 ```
 
 ## Resources
@@ -33,7 +36,9 @@ Mobile app ── HTTPS, Authorization: Bearer <token> ──> API Management
 | Named value | `func-api-key` | function key from Key Vault; created in the second apply |
 | API version set and API | `b2bapp`, `b2bapp-v1` | path `/b2bapp/v1` |
 | Operations | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` on `/*` | wildcard forwarding |
-| API policy | – | rendered from `policies/api.xml.tftpl` |
+| Global policy | – | rendered from `policies/global.xml.tftpl`: token validation, concurrency limit, timeout |
+| API policy | – | rendered from `policies/api.xml.tftpl`: routing to the backend |
+| Metric alert | `alert-apim5xx-b2bapp-prd-weu-001` | API Management 5xx responses |
 
 ## Settings
 
@@ -75,8 +80,47 @@ Terraform) and in the Function App settings. The state is protected by Entra ID 
 | Identity | system-assigned | reads the named values from Key Vault |
 | Telemetry | Application Insights, 100% sampling | no client IP addresses and no request or response bodies |
 | API | `/b2bapp/v1`, HTTPS only, no subscription key | callers authenticate with a bearer token |
-| Token validation | `jwt_validation` | `null` = every request is rejected with 401 |
-| Concurrency | `api_max_concurrency` = 20 | `rate-limit-by-key` isn't available in the Consumption tier |
+| Token validation | `jwt_validation`, global policy | applies to every API of the instance; `null` = every request is rejected with 401 |
+| Concurrency | `api_max_concurrency` = 20 per API | `rate-limit-by-key` isn't available in the Consumption tier |
+| Backend timeout | `api_backend_timeout_seconds` = 25 | Microsoft asks for the shortest acceptable value; the Consumption tier ends every request after 30 seconds |
+| TLS | TLS 1.2 or later | TLS 1.0, TLS 1.1 and SSL 3.0 are disabled towards clients and backends; cipher suites can't be changed in the Consumption tier |
+| Alert | 5xx responses above `alert_api_server_errors_threshold` in 15 minutes | `Requests` metric, `GatewayResponseCodeCategory` = 5xx; notifies `alert_action_group_name` when set |
+
+### Policies
+
+API Management combines policies defined at several scopes: global (all APIs), product, API and
+operation. In each section (`inbound`, `backend`, `outbound`, `on-error`) the `<base />` element
+decides where the policies of the parent scope run; without it they don't run at all.
+
+| Scope | Content | `<base />` |
+|---|---|---|
+| Global | token validation (`inbound`), concurrency limit and `forward-request` with timeout (`backend`) | none: the global scope has no parent |
+| API `b2bapp-v1` | routing to the `func-api` backend (`inbound`) | **first element of every section** |
+| Operations | no policies: they inherit the API policy | – |
+| Products | not used: product policies apply only to requests with a subscription key | – |
+
+Placing token validation at the global scope protects every API by default, including future
+ones. `<base />` must be the very first element of each section of API and operation policies,
+with nothing before it (not even a comment): the Azure Policy built-in *API Management policies
+should inherit parent scope policies using `<base />`* checks exactly that. The `backend` section
+can contain a single element: at the API scope it is `<base />`, at the global scope it is
+`limit-concurrency` wrapping `forward-request`.
+
+The global validation stores the validated token in the `jwt` context variable: per-API checks
+(for example on the `scp` scopes) can be added in the API policy after `<base />`, using
+`context.Variables["jwt"]`. The portal shows the combined result with **Calculate effective
+policy**.
+
+### Compliance notes
+
+| Azure Policy built-in | Status |
+|---|---|
+| APIs should use only encrypted protocols | compliant (HTTPS only) |
+| Secret named values should be stored in Azure Key Vault | compliant |
+| Policies should inherit parent scope policies using `<base />` | compliant |
+| Direct management endpoint should not be enabled | compliant (not available in the Consumption tier) |
+| Calls to API backends should be authenticated | **not compliant**: the rule recognizes only certificates or Authorization credentials, not the `x-functions-key` header. Resolved by the move to the managed identity of API Management (see Future changes) |
+| Service should use a SKU that supports virtual networks / should use a virtual network | **not compliant** by design of the Consumption tier; if assigned with the Deny effect it blocks the creation of the instance |
 
 ## Deployment procedure
 
@@ -156,6 +200,10 @@ curl -i -H "Authorization: Bearer $TOKEN" "$(terraform -chdir=workload output -r
   # Refresh the func-api-key named value from the portal, or wait up to 4 hours, then:
   az functionapp keys delete -g "$RG" -n "$APP" --key-type functionKeys --key-name apim
   ```
+- **Tune the backend timeout**: set `api_backend_timeout_seconds` to the shortest value that the
+  real response times (Application Insights) allow.
+- **Enable alert notifications**: set `alert_action_group_name`, for example to the action group
+  of the platform root.
 - **Reduce cold starts**: set `function_always_ready_http_instances = 1` (billed while idle).
 - **Change the language** of the Function App: change `function_runtime` only before the first
   code deployment; afterwards create a new Function App.
@@ -250,8 +298,11 @@ Replace `apim_publisher_email` with a shared mailbox; the change is applied in p
 | `function_app_settings` | `{}` | application settings |
 | `function_key_secret_name` | `null` | Key Vault secret with the function key (second apply) |
 | `api_path`, `api_version` | `b2bapp`, `v1` | API URL |
-| `api_max_concurrency` | 20 | concurrent requests towards the Function App |
-| `jwt_validation` | `null` | bearer token validation |
+| `api_max_concurrency` | 20 | concurrent requests towards the backend, per API |
+| `api_backend_timeout_seconds` | 25 | backend timeout (1-29 seconds) |
+| `jwt_validation` | `null` | bearer token validation (global policy) |
+| `alert_api_server_errors_threshold` | 5 | 5xx responses in 15 minutes that fire the alert |
+| `alert_action_group_name` | `null` | existing action group notified by the alerts |
 
 ## Outputs
 

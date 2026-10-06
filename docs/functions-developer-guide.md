@@ -38,15 +38,35 @@ project with `func init <project-folder> --worker-runtime python`.
 
 - Use `AuthorizationLevel.Function`: requests without a valid function key get 401. API
   Management adds the key; never put function keys in the mobile app.
-- The `Authorization: Bearer <token>` header is forwarded to the function after API Management
-  has validated it. Claims such as `sub` can be read from the token payload.
+- The original `Authorization: Bearer <token>` header is forwarded unchanged to the function
+  after API Management has validated it (signature, issuer, audience, expiry). The function
+  reads the user identity from the token claims; it can also validate the token again as a
+  defense in depth.
 - Respond quickly:
-  - API Management Consumption ends a request after **30 seconds**;
+  - API Management waits at most **25 seconds** for the function (`api_backend_timeout_seconds`),
+    and the Consumption tier ends every request after 30 seconds;
   - an HTTP-triggered function must respond within **230 seconds** in any case;
   - for longer work, accept the request and process it asynchronously.
 - API Management forwards at most 20 concurrent requests to the app (`api_max_concurrency`);
   beyond that, callers receive 429 and should retry.
 - Write stateless functions: instances are created and removed by the platform.
+
+## Security requirement: the identity comes from the token
+
+A valid token proves **who** the caller is, not **which data** they may access. Checking access
+to each object is the responsibility of the functions (OWASP API Security Top 10, API1: Broken
+Object Level Authorization); API Management can't do it.
+
+- Identify the caller only from the token claims, **never from request parameters**: after the
+  first association, read and write operations must find the business partner record from the
+  user identifier in the token, not from a customer code or VAT number sent by the app.
+- The association between a user and a business partner record is created once, in a
+  controlled operation that verifies the data provided by the user before storing the link.
+- Always check that the requested record belongs to the authenticated user, even when the token
+  is valid; reject the request otherwise.
+
+How the association is implemented (which claim, where it is stored) is a design decision of the
+application team.
 
 ## Configuration and secrets
 
@@ -140,3 +160,4 @@ Test tokens reach the **production** environment and real data: use them careful
 | 429 | more than `api_max_concurrency` concurrent requests |
 | The code reads `@Microsoft.KeyVault(...)` instead of the secret value | Key Vault reference not resolved: check the secret name and the reference status in the app settings of the portal |
 | Slow first call | cold start: the app scales to zero when idle |
+| Request fails after about 25 seconds | the function didn't respond within `api_backend_timeout_seconds` |
