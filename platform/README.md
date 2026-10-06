@@ -118,6 +118,9 @@ state. Write them directly to the vault:
 az keyvault secret set --vault-name <key-vault-name> --name <secret-name> --file <file-with-the-value>
 ```
 
+The file content is stored as is, including the trailing newline that most editors add. For
+single-line values remove it first, for example with `tr -d '\r\n' < <file> > <file>.clean`.
+
 Applications read them through **versionless** references, so they always get the latest
 version:
 

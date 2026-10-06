@@ -150,10 +150,13 @@ one, can be rotated without affecting other callers:
 RG=<resource-group>; APP=func-api-b2bapp-prd-weu-001; KV=<key-vault-name>
 tmp=$(mktemp)
 az functionapp keys set -g "$RG" -n "$APP" --key-type functionKeys --key-name apim --output none
-az functionapp keys list -g "$RG" -n "$APP" --query functionKeys.apim -o tsv > "$tmp"
+az functionapp keys list -g "$RG" -n "$APP" --query functionKeys.apim -o tsv | tr -d '\r\n' > "$tmp"
 az keyvault secret set --vault-name "$KV" --name apim-function-key --file "$tmp" --output none
 rm -f "$tmp"
 ```
+
+`az keyvault secret set --file` stores the file content as is, so the trailing newline added by
+`-o tsv` is removed first: with it, the header sent to the Function App would not match the key.
 
 **Test token signing key** (until Entra External ID is available): run
 `tools/test-jwt/create-signing-key.sh --vault <key-vault-name>` and copy the printed modulus.
@@ -184,7 +187,8 @@ curl -i -H "Authorization: Bearer $TOKEN" "$(terraform -chdir=workload output -r
 - **Add an app setting**: add it to `function_app_settings` in `envs/<environment>.tfvars`,
   then plan and apply. Settings added from the portal or the CLI are removed at the next apply.
 - **Add a secret**: write the value to Key Vault
-  (`az keyvault secret set --vault-name <kv> --name <name> --file <file>`), then add an app
+  (`az keyvault secret set --vault-name <kv> --name <name> --file <file>`, with a file without
+  a trailing newline: see the Key Vault section of `platform/README.md`), then add an app
   setting with a versionless reference:
   `@Microsoft.KeyVault(SecretUri=https://<kv>.vault.azure.net/secrets/<name>)`. The app picks
   up a new secret version within 24 hours, or immediately after any configuration change.
@@ -194,7 +198,7 @@ curl -i -H "Authorization: Bearer $TOKEN" "$(terraform -chdir=workload output -r
   ```bash
   tmp=$(mktemp)
   az functionapp keys set -g "$RG" -n "$APP" --key-type functionKeys --key-name apim-2 --output none
-  az functionapp keys list -g "$RG" -n "$APP" --query '"functionKeys"."apim-2"' -o tsv > "$tmp"
+  az functionapp keys list -g "$RG" -n "$APP" --query '"functionKeys"."apim-2"' -o tsv | tr -d '\r\n' > "$tmp"
   az keyvault secret set --vault-name "$KV" --name apim-function-key --file "$tmp" --output none
   rm -f "$tmp"
   # Refresh the func-api-key named value from the portal, or wait up to 4 hours, then:
