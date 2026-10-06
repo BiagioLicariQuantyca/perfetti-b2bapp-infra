@@ -105,6 +105,11 @@ resource "azurerm_function_app_flex_consumption" "this" {
   }
 
   app_settings = var.app_settings
+
+  lifecycle {
+    # The portal adds this tag to link the app to its Application Insights resource.
+    ignore_changes = [tags["hidden-link: /app-insights-resource-id"]]
+  }
 }
 
 resource "azurerm_management_lock" "this" {

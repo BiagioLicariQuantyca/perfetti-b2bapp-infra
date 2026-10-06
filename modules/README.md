@@ -89,6 +89,7 @@ Function App.
 | `maximum_instance_count` | 100 (1-1000) | default |
 | `always_ready_http_instances` | 0 | default |
 | `name` | at most 32 characters, to avoid host ID collisions | validated |
+| Tag `hidden-link: /app-insights-resource-id` | added by the portal to link the app to Application Insights | ignored |
 
 Outputs: `id`, `name`, `default_hostname`, `principal_id` (system-assigned identity),
 `storage_account_id`, `storage_account_name`.
