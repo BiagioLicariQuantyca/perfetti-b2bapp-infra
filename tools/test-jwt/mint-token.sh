@@ -13,6 +13,8 @@
 #   --audience VALUE     aud claim (default api://b2bapp-test)
 #   --sub VALUE          sub claim (default: a random UUID for every token)
 #   --hours N            validity in hours, 1-168 (default 8)
+#   --claim NAME=VALUE   additional string claim, for example --claim customer_code=C0001;
+#                        repeatable, the standard claims above can't be overridden
 #
 # Requires: openssl, and az (signed in, with permission to read secrets) when using --vault.
 
@@ -29,8 +31,9 @@ ISSUER="urn:b2bapp:test-issuer"
 AUDIENCE="api://b2bapp-test"
 SUB=""
 HOURS=8
+CLAIMS=()
 
-usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+usage() { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -42,6 +45,7 @@ while [[ $# -gt 0 ]]; do
     --audience) AUDIENCE="$2"; shift 2 ;;
     --sub) SUB="$2"; shift 2 ;;
     --hours) HOURS="$2"; shift 2 ;;
+    --claim) CLAIMS+=("$2"); shift 2 ;;
     -h|--help) usage ;;
     *) echo "Unknown option: $1" >&2; usage ;;
   esac
@@ -78,12 +82,26 @@ if [[ -n "$VAULT" ]]; then
   KEY_FILE="$workdir/private.pem"
 fi
 
+# Additional claims: plain names and values that need no JSON escaping.
+extra=""
+for claim in ${CLAIMS[@]+"${CLAIMS[@]}"}; do
+  name="${claim%%=*}"
+  value="${claim#*=}"
+  [[ "$claim" == *=* && "$name" =~ ^[A-Za-z_][A-Za-z0-9_.-]*$ ]] \
+    || { echo "Invalid --claim, expected NAME=VALUE: $claim" >&2; exit 1; }
+  case "$name" in
+    iss|aud|sub|iat|nbf|exp|kid|alg|typ) echo "--claim can't override the standard claim $name" >&2; exit 1 ;;
+  esac
+  [[ "$value" =~ ^[A-Za-z0-9:/._@-]+$ ]] || { echo "Unsupported characters in claim value: $value" >&2; exit 1; }
+  extra+="$(printf ',"%s":"%s"' "$name" "$value")"
+done
+
 now="$(date +%s)"
 exp="$(( now + HOURS * 3600 ))"
 
 header="$(printf '{"alg":"RS256","typ":"JWT","kid":"%s"}' "$KID" | b64url)"
-payload="$(printf '{"iss":"%s","aud":"%s","sub":"%s","iat":%d,"nbf":%d,"exp":%d}' \
-  "$ISSUER" "$AUDIENCE" "$SUB" "$now" "$now" "$exp" | b64url)"
+payload="$(printf '{"iss":"%s","aud":"%s","sub":"%s","iat":%d,"nbf":%d,"exp":%d%s}' \
+  "$ISSUER" "$AUDIENCE" "$SUB" "$now" "$now" "$exp" "$extra" | b64url)"
 signature="$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -sign "$KEY_FILE" -binary | b64url)"
 
 printf '%s.%s.%s\n' "$header" "$payload" "$signature"

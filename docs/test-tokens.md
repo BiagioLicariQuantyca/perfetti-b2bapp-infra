@@ -23,7 +23,8 @@ App: the code that reads the token works the same way today and after the switch
 | Payload | `sub` | user identifier: a random UUID for every token, or the value of `--sub` |
 | Payload | `iat`, `nbf`, `exp` | issued at, valid from, expires at (Unix time) |
 
-Test tokens carry **no other claims**: no scopes (`scp`), no `oid`, no email or name. See
+Test tokens carry **no other claims** unless you add them with `--claim`: no scopes (`scp`), no
+`oid`, no email or name. See
 [After the switch to Entra External ID](#after-the-switch-to-entra-external-id) for what
 changes.
 
@@ -68,6 +69,7 @@ deletes the folder on exit: the key is never stored on your machine.
 |---|---|---|
 | `--hours N` | 8 | lifetime, from 1 to 168 hours (7 days). Keep it as short as your test allows: more than 24 hours only for tokens handed to the developers of the mobile app |
 | `--sub VALUE` | random UUID | stable user identifier, to simulate the same user across tokens. Allowed characters: letters, digits and `: / . _ @ -` |
+| `--claim NAME=VALUE` | none | additional string claim, repeatable, for example `--claim customer_code=C0001`. Same allowed characters; the standard claims can't be overridden |
 
 `--kid`, `--issuer` and `--audience` exist only to match a different API Management
 configuration: don't change them for normal tests.
@@ -127,12 +129,17 @@ security requirement in `docs/functions-developer-guide.md`). Two stable identit
 easy to test:
 
 ```bash
-TOKEN_A=$(tools/test-jwt/mint-token.sh --vault <key-vault-name> --sub test-user-a --hours 1)
-TOKEN_B=$(tools/test-jwt/mint-token.sh --vault <key-vault-name> --sub test-user-b --hours 1)
+TOKEN_A=$(tools/test-jwt/mint-token.sh --vault <key-vault-name> --sub test-user-a \
+  --claim customer_code=<customer code A> --hours 1)
+TOKEN_B=$(tools/test-jwt/mint-token.sh --vault <key-vault-name> --sub test-user-b \
+  --claim customer_code=<customer code B> --hours 1)
 ```
 
-Associate a record with `test-user-a`, then verify that every request made with `TOKEN_B` on
-that record is rejected.
+Verify that each token reads and writes only the record of its own customer code, and that a
+token without the claim is rejected.
+
+The claim name `customer_code` is provisional: the final name depends on how Entra External ID
+is configured. Read it from an app setting, so that the switch is a configuration change.
 
 ## Rules
 

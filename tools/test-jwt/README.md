@@ -65,7 +65,8 @@ curl -H "Authorization: Bearer $TOKEN" https://<api-management>.azure-api.net/b2
 ```
 
 Options: `--sub <value>` for a stable subject across tokens, `--hours <1-168>` for the
-lifetime, `--kid`, `--issuer`, `--audience` to match a different configuration.
+lifetime, `--claim <name>=<value>` (repeatable) for additional string claims such as a customer
+code, `--kid`, `--issuer`, `--audience` to match a different configuration.
 
 `--key-file <private-key.pem>` mints a token with a local key, without Key Vault: useful only to
 test the tool itself.

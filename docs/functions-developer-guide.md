@@ -64,11 +64,15 @@ A valid token proves **who** the caller is, not **which data** they may access. 
 to each object is the responsibility of the functions (OWASP API Security Top 10, API1: Broken
 Object Level Authorization); API Management can't do it.
 
-- Identify the caller only from the token claims, **never from request parameters**: after the
-  first association, read and write operations must find the business partner record from the
-  user identifier in the token, not from a customer code or VAT number sent by the app.
-- The association between a user and a business partner record is created once, in a
-  controlled operation that verifies the data provided by the user before storing the link.
+- Identify the caller and the business partner only from the token claims, **never from
+  request parameters**: read and write operations find the record from the customer code in the
+  token, not from a customer code sent by the app in the path, the query string or the body.
+- If the token doesn't carry the claim the operation needs, reject the request (401 or 403).
+  Never fall back to a value sent by the app: that is exactly the gap a partner would use to
+  read another partner's data.
+- The customer code gets into the token only after it has been verified, once, during
+  registration (by the identity provider, for example through a verification call to a function
+  before the account is created).
 - Always check that the requested record belongs to the authenticated user, even when the token
   is valid; reject the request otherwise.
 
