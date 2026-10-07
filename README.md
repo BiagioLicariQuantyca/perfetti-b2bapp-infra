@@ -101,14 +101,32 @@ export ARM_SUBSCRIPTION_ID=<subscription-id>
 
 The tenant and subscription IDs of each environment are in `bootstrap/envs/<environment>.env`.
 
-**With a service principal**, for example from a pipeline, the code does not change: set the
-provider environment variables.
+**With a service principal** the code does not change: set the provider environment variables.
+The backend uses the same identity, which needs the permissions listed in the prerequisites.
+
+- With a client secret, for runs from a workstation:
+
+  ```bash
+  export ARM_TENANT_ID=<tenant-id>
+  export ARM_SUBSCRIPTION_ID=<subscription-id>
+  export ARM_CLIENT_ID=<application-client-id>   # the application (client) ID, not the secret ID
+
+  # Copy the secret value to the clipboard, then (macOS):
+  ARM_CLIENT_SECRET=$(pbpaste | tr -d '\r\n ') && export ARM_CLIENT_SECRET && pbcopy < /dev/null
+  # Elsewhere, paste it at the prompt without echo: read -rs ARM_CLIENT_SECRET && export ARM_CLIENT_SECRET
+
+  # When done
+  unset ARM_CLIENT_SECRET
+  ```
+
+  The secret never appears in commands or files. Keep it only in a password manager: never in the
+  repository, in local files or in the Key Vault of the solution, whose access policies let the
+  solution identities read every secret. Client secrets expire: renew it before the expiry date,
+  or replace it with a certificate.
 - With a certificate: `ARM_CLIENT_ID`, `ARM_CLIENT_CERTIFICATE_PATH` and
   `ARM_CLIENT_CERTIFICATE_PASSWORD`.
-- With a federated credential (OIDC): `ARM_USE_OIDC=true` plus the variables required by the
-  CI/CD platform.
-
-The backend uses the same identity.
+- With a federated credential (OIDC), from a pipeline: `ARM_USE_OIDC=true` plus the variables
+  required by the CI/CD platform.
 
 ## Environments
 
