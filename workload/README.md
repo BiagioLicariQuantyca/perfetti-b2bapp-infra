@@ -238,6 +238,41 @@ API Management reads the signing keys and the issuer from the configuration endp
 refreshes them every hour. Then delete the `jwt-test-signing-key` secret from Key Vault, the
 `tools/test-jwt` folder and `docs/test-tokens.md`.
 
+### Customer code from the token → header for the functions
+
+The functions identify the business partner from a claim of the validated token, for example
+`customer_code` (the final name depends on the Entra External ID configuration). The token is
+already forwarded unchanged, so the functions can read the claim directly. To read it in one
+place and reject tokens without it before they reach the functions, add these elements to
+`policies/api.xml.tftpl`, in the `inbound` section **after** `<base />` and before
+`set-backend-service`:
+
+```xml
+<!-- The global policy stores the validated token in the "jwt" variable -->
+<set-variable name="customerCode" value="@(((Jwt)context.Variables[&quot;jwt&quot;]).Claims.GetValueOrDefault(&quot;customer_code&quot;, &quot;&quot;))" />
+<choose>
+  <when condition="@(string.IsNullOrEmpty((string)context.Variables[&quot;customerCode&quot;]))">
+    <return-response>
+      <set-status code="403" reason="Forbidden" />
+    </return-response>
+  </when>
+</choose>
+<!-- override: a value sent by the client is always replaced -->
+<set-header name="X-Customer-Code" exists-action="override">
+  <value>@((string)context.Variables[&quot;customerCode&quot;])</value>
+</set-header>
+```
+
+- Use a header, not a query parameter: the URL and its route stay unchanged, and the value
+  doesn't end up in URLs and logs.
+- Keep `exists-action="override"`: without it, a client could send its own `X-Customer-Code`.
+- The functions read the value only from this header (or from the token), and never fall back
+  to a customer code sent by the app.
+- Make the claim name a template variable when it is final, so that it is set in the tfvars.
+- Test it on dev with `tools/test-jwt/mint-token.sh --claim customer_code=<code>`; a token
+  without the claim must get 403. Policy changes go through plan and apply: changes made in the
+  portal are overwritten at the next apply.
+
 ### Wildcard operations → OpenAPI import
 
 Once the API contract is stable, replace the wildcard operations with the OpenAPI definition
