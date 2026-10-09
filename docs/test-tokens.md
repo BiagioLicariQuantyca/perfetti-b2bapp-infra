@@ -202,4 +202,5 @@ az keyvault set-policy --name <key-vault-name> --object-id <object-id> --secret-
 - If the code validates the token again as a defense in depth, keep issuer, audience and
   signing keys (or the OpenID configuration URL) in app settings, not in code.
 - How developers get Entra tokens for their tests (for example a test account in the external
-  tenant) will be defined together with the tenant.
+  tenant) will be defined together with the tenant. The switch itself is described in
+  `docs/entra-external-id.md`.

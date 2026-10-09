@@ -280,8 +280,9 @@ the host): nothing in it needs to be kept, because the code is deployed again fr
 
 ### Test tokens → Entra External ID
 
-When Perfetti provides the external tenant (tenant ID and subdomain) and the API app
-registration (client ID and scopes):
+The complete procedure, including the customer code and the sign-up webhook, is in
+`docs/entra-external-id.md`. In short, when the external tenant (tenant ID and subdomain) and the
+API app registration (client ID and scopes) are available:
 
 ```hcl
 jwt_validation = {
