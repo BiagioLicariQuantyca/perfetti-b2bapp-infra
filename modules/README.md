@@ -94,6 +94,39 @@ Function App.
 Outputs: `id`, `name`, `default_hostname`, `principal_id` (system-assigned identity),
 `storage_account_id`, `storage_account_name`.
 
+## `function-app-premium`
+
+Function App on the Elastic Premium plan (Linux), with a dedicated storage account and the
+storage logs. Optional lock on the Function App. Same interface and outputs as
+`function-app-flex`, so a root can switch between the two.
+
+| Setting | Value | Kind |
+|---|---|---|
+| Plan | Elastic Premium, Linux | fixed |
+| `sku_name` | `EP1` (1 vCPU, 3.5 GB); `EP2` and `EP3` double size and price at each step; can be changed in place | default |
+| `always_ready_instances` | 1 (1-20): instances always running and billed, regardless of load; they also set the minimum size of the plan | default |
+| `maximum_instance_count` | 20 (1-100): maximum burst of the plan, instances billed only while allocated | default |
+| Storage authentication | connection string from the account key, for the host storage and the Azure Files content share (set by the provider) | fixed |
+| Storage account | StorageV2, TLS 1.2, HTTPS only, no anonymous access, no cross-tenant replication, shared keys enabled (the content share doesn't support identity-based connections) | fixed |
+| `storage_replication_type` | `LRS` | default |
+| Storage logs | `StorageWrite` of the blob service to `log_analytics_workspace_id` | optional |
+| Deployment | `.NET`: `WEBSITE_RUN_FROM_PACKAGE = 1` (the app runs from the zip package); Python: remote build (`SCM_DO_BUILD_DURING_DEPLOYMENT`, `ENABLE_ORYX_BUILD`) | fixed |
+| `WEBSITE_RUN_FROM_PACKAGE` | changes made by the deployment tools | ignored |
+| HTTPS only, minimum TLS (site and deployment endpoint), FTP | yes, 1.2, disabled | fixed |
+| Basic authentication for deployments | disabled | fixed |
+| Built-in logging (`AzureWebJobsDashboard`) | disabled: logs go to Application Insights | fixed |
+| Identity | system-assigned (Key Vault references) plus `user_assigned_identity_ids` | fixed / input |
+| `runtime` | required: `dotnet-isolated` (for example `10.0`) or `python` (for example `3.13`) | input |
+| `name` | at most 32 characters, to avoid host ID collisions | validated |
+| Tag `hidden-link: /app-insights-resource-id` | added by the portal to link the app to Application Insights | ignored |
+
+A Premium plan is billed for at least one instance at all times. A Function App can't be moved
+in place between a Flex Consumption plan and a Premium plan on Linux: the switch creates a new
+app.
+
+Outputs: `id`, `name`, `default_hostname`, `principal_id` (system-assigned identity),
+`storage_account_id`, `storage_account_name`.
+
 ## `api-management`
 
 API Management instance with a system-assigned identity and request telemetry in Application

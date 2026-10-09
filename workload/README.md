@@ -16,7 +16,7 @@ Mobile app ── HTTPS, Authorization: Bearer <token> ──> API Management
       3. global policy, backend: limit-concurrency (at most api_max_concurrency requests in
          flight per API, 429 beyond) and forward with a timeout of api_backend_timeout_seconds,
          adding the x-functions-key header (function key read from Key Vault)
-          ──> Function App  https://func-api-b2bapp-prd-weu-001.azurewebsites.net/api/<route>
+          ──> Function App  https://func-api-b2bapp-prd-weu-002.azurewebsites.net/api/<route>
                  functions with AuthorizationLevel.Function (401 without a valid key);
                  the original Authorization header is forwarded unchanged
 ```
@@ -25,10 +25,9 @@ Mobile app ── HTTPS, Authorization: Bearer <token> ──> API Management
 
 | Resource | Name (prd) | Notes |
 |---|---|---|
-| Storage account | `stapib2bappprdweu001` | dedicated to the Function App |
-| Deployment container | `app-package` | holds the zip package the app runs from |
-| Flex Consumption plan | `asp-api-b2bapp-prd-weu-001` | one app per plan |
-| Function App | `func-api-b2bapp-prd-weu-001` | APIs called by the mobile app |
+| Storage account | `stapib2bappprdweu002` | dedicated to the Function App |
+| Elastic Premium plan | `asp-api-b2bapp-prd-weu-002` | `function_hosting = "premium"` |
+| Function App | `func-api-b2bapp-prd-weu-002` | APIs called by the mobile app |
 | API Management | `apim-b2bapp-prd-weu-001` | Consumption tier |
 | Application Insights logger and diagnostic | – | API Management request telemetry |
 | Key Vault access policies | – | Function App (Get) and API Management (Get, List) |
@@ -40,22 +39,46 @@ Mobile app ── HTTPS, Authorization: Bearer <token> ──> API Management
 | API policy | – | rendered from `policies/api.xml.tftpl`: routing to the backend |
 | Metric alert | `alert-apim5xx-b2bapp-prd-weu-001` | API Management 5xx responses |
 
+The Function App resources depend on `function_hosting`:
+
+| `function_hosting` | Environments | Plan | Names | Storage |
+|---|---|---|---|---|
+| `flex` | dev | Flex Consumption, one app per plan | instance `001`, for example `func-api-b2bapp-dev-weu-001` | `app-package` container for the deployment package |
+| `premium` | prd | Elastic Premium | next instance, `002`, for example `func-api-b2bapp-prd-weu-002` | Azure Files content share, created by the platform |
+
+The two sets of names differ so that a new app can be created while the one it replaces still
+exists (see Change the hosting plan).
+
 ## Settings
 
 ### Function App
 
 | Setting | Value | Notes |
 |---|---|---|
-| Hosting plan | Flex Consumption (Linux) | serverless; no deployment slots; cannot be migrated in place to another plan |
+| Hosting plan | `function_hosting`: `flex` (Flex Consumption) or `premium` (Elastic Premium), Linux | a change creates a new Function App: see Change the hosting plan |
 | Runtime | `dotnet-isolated` `10.0` | `function_runtime`; for Python `{ name = "python", version = "3.13" }`. One language per app |
-| Instance memory | 2048 MB (1 vCPU) | `function_instance_memory_in_mb`: 512, 2048 or 4096 |
-| Always ready instances | 0 | `function_always_ready_http_instances`: with 0 the app scales to zero, with cold starts and no idle cost |
-| Maximum instances | 40 | `function_maximum_instance_count` |
 | HTTPS only, minimum TLS | yes, 1.2 | also for the deployment endpoint |
-| Basic authentication for deployments | disabled | Flex deployments use Entra ID identities |
+| Basic authentication for deployments | disabled | deployments use Entra ID identities |
 | Identities | system-assigned + `id-func-b2bapp-prd-weu-001` | the system-assigned identity resolves Key Vault references; the user-assigned one is available to the code |
 | Application Insights | connection string | `APPLICATIONINSIGHTS_CONNECTION_STRING`, set by Terraform |
 | App settings | `function_app_settings` | non-secret values and Key Vault references only |
+
+Flex Consumption (`function_hosting = "flex"`): serverless, no deployment slots.
+
+| Setting | Value | Notes |
+|---|---|---|
+| Instance memory | 2048 MB (1 vCPU) | `function_instance_memory_in_mb`: 512, 2048 or 4096 |
+| Always ready instances | 0 | `function_always_ready_http_instances`: with 0 the app scales to zero, with cold starts and no idle cost |
+| Maximum instances | 40 | `function_maximum_instance_count` |
+
+Elastic Premium (`function_hosting = "premium"`): always ready instances, no cold starts, billed
+for at least one instance even when idle. Settings in `function_premium`:
+
+| Setting | Value | Notes |
+|---|---|---|
+| `sku_name` | `EP1` (1 vCPU, 3.5 GB) | `EP2` and `EP3` double size and price at each step; changed in place |
+| `always_ready_instances` | 1 | 1-20, each billed around the clock |
+| `maximum_instance_count` | 20 | maximum burst; extra instances are billed only while allocated |
 
 ### Storage account
 
@@ -64,7 +87,7 @@ Mobile app ── HTTPS, Authorization: Bearer <token> ──> API Management
 | Kind, tier, replication | StorageV2, Standard, LRS | can be converted to ZRS on the same account |
 | Minimum TLS, HTTPS only, anonymous access | 1.2, yes, disabled | |
 | Shared keys | **enabled** | required by the connection string authentication |
-| Connections | host storage (`AzureWebJobsStorage`) and deployment storage, both with the connection string | set by Terraform from the account key |
+| Connections | host storage (`AzureWebJobsStorage`), plus the deployment container (Flex Consumption) or the Azure Files content share (Elastic Premium), all with the connection string | set by Terraform from the account key |
 | Lifecycle policies | none | Microsoft warns they could delete function keys |
 | Logs | `StorageWrite` of the blob service to Log Analytics | detects any use of the keys outside the Functions host |
 
@@ -151,7 +174,7 @@ one, can be rotated without affecting other callers. The secret name is
 
 ```bash
 RG=<resource-group>; KV=<key-vault-name>
-APP=func-api-b2bapp-$ENV-weu-001; SECRET=apim-function-key-$ENV   # production: apim-function-key
+APP=$(terraform output -raw function_app_name); SECRET=apim-function-key-$ENV   # production: apim-function-key
 tmp=$(mktemp)
 az functionapp keys set -g "$RG" -n "$APP" --key-type functionKeys --key-name apim --output none
 az functionapp keys list -g "$RG" -n "$APP" --query functionKeys.apim -o tsv | tr -d '\r\n' > "$tmp"
@@ -215,9 +238,43 @@ curl -i -H "Authorization: Bearer $TOKEN" "$(terraform -chdir=workload output -r
   real response times (Application Insights) allow.
 - **Enable alert notifications**: set `alert_action_group_name`, for example to the action group
   of the platform root.
-- **Reduce cold starts**: set `function_always_ready_http_instances = 1` (billed while idle).
+- **Reduce cold starts** on Flex Consumption: set `function_always_ready_http_instances = 1`
+  (billed while idle). Elastic Premium always keeps at least one instance ready.
+- **Resize the Premium plan**: change `function_premium.sku_name` (`EP1`, `EP2`, `EP3`) or the
+  instance counts; the change is applied in place.
 - **Change the language** of the Function App: change `function_runtime` only before the first
   code deployment; afterwards create a new Function App.
+
+## Change the hosting plan
+
+A Function App on Linux can't move in place between Flex Consumption and Elastic Premium: changing
+`function_hosting` in `envs/<environment>.tfvars` creates a new Function App, with its plan and
+storage account, and deletes the previous one. The mobile app is not affected, because it only
+calls API Management, but the API answers with errors until the code is deployed and the
+function key is stored: plan the switch when the API can be unavailable for a few minutes.
+
+1. Plan and check that it contains only these changes:
+
+   | Action | Resources |
+   |---|---|
+   | create | plan, Function App, storage account and its diagnostic setting of the new hosting plan |
+   | destroy | plan, Function App, storage account (and container) and its diagnostic setting of the previous hosting plan |
+   | update in place | `azurerm_api_management_backend.func_api`: URL of the new app |
+   | replace | `azurerm_key_vault_access_policy.func_api`: identity of the new app |
+
+2. Apply the saved plan.
+3. Create the `apim` host key of the new app and store it in the Key Vault secret named in
+   `function_key_secret_name`, with the commands of the manual steps of the deployment procedure
+   (`APP` comes from the `function_app_name` output). Then refresh the `func-api-key` named value
+   from the portal (API Management → Named values → `func-api-key` → Refresh secret), or wait up to
+   4 hours.
+4. Deploy the code to the new app (`docs/functions-developer-guide.md`). The app settings are
+   already in place; if the portal shows a Key Vault reference in error (the access policy is
+   created after the app), restart the app.
+5. Call an endpoint through API Management and check the response.
+
+The storage account of the previous app is deleted with its content (function keys, logs of
+the host): nothing in it needs to be kept, because the code is deployed again from its package.
 
 ## Future changes
 
@@ -288,6 +345,9 @@ keep working.
 Requires role assignments (for example Role Based Access Control Administrator on the resource
 group). For the identity `id-func-b2bapp-prd-weu-001`:
 
+This applies to Flex Consumption: on Elastic Premium the Azure Files content share still needs
+the connection string.
+
 1. assign `Storage Blob Data Owner` and `Storage Table Data Contributor` on the storage account
    (host storage) and `Storage Blob Data Contributor` (deployment container);
 2. in the module, set `storage_authentication_type = "UserAssignedIdentity"` with
@@ -302,12 +362,6 @@ Requires an app registration in Entra ID for the Function App: enable App Servic
 authentication on the Function App and use the `authentication-managed-identity` policy in
 API Management. The function key, the named value and the Key Vault secret can then be removed.
 
-### Other hosting plan for the Functions
-
-Flex Consumption apps cannot be migrated in place. Create a new Function App on the target plan,
-deploy the code, point the `func-api` backend to it and remove the old app. The mobile app is not
-affected, because it only calls API Management.
-
 ### API Management tier
 
 The Consumption tier cannot be changed on the same instance. To move to Standard v2 (for
@@ -319,9 +373,11 @@ and a certificate in Key Vault) avoids it.
 ### Further Function Apps
 
 A scheduled synchronization (for example Commerce Cloud → Salesforce) belongs in a separate
-Function App: add another instance of `../modules/function-app-flex` (for example
-`func-sync-b2bapp-prd-weu-001` with storage `stsyncb2bappprdweu001`) and its Key Vault access
-policy. Timer triggers on Flex Consumption use UTC: `WEBSITE_TIME_ZONE` isn't supported.
+Function App: add another instance of `../modules/function-app-flex` or
+`../modules/function-app-premium` (for example `func-sync-b2bapp-prd-weu-001` with storage
+`stsyncb2bappprdweu001`) and its Key Vault access policy. Several apps can share one Elastic
+Premium plan, but the module creates a plan for each app. Timer triggers on Flex Consumption use
+UTC: `WEBSITE_TIME_ZONE` isn't supported.
 
 ### Publisher email
 
@@ -337,10 +393,12 @@ Replace `apim_publisher_email` with a shared mailbox; the change is applied in p
 | `apim_sku_name` | `Consumption_0` | API Management tier |
 | `apim_publisher_name`, `apim_publisher_email` | – | API Management publisher |
 | `apim_telemetry_sampling_percentage` | 100 | requests sent to Application Insights |
+| `function_hosting` | `flex` | hosting plan: `flex` or `premium` |
 | `function_runtime` | `dotnet-isolated` `10.0` | language stack |
-| `function_instance_memory_in_mb` | 2048 | instance memory |
-| `function_maximum_instance_count` | 40 | maximum on-demand instances |
-| `function_always_ready_http_instances` | 0 | always ready instances |
+| `function_instance_memory_in_mb` | 2048 | Flex Consumption: instance memory |
+| `function_maximum_instance_count` | 40 | Flex Consumption: maximum on-demand instances |
+| `function_always_ready_http_instances` | 0 | Flex Consumption: always ready instances |
+| `function_premium` | `{ sku_name = "EP1", always_ready_instances = 1, maximum_instance_count = 20 }` | Elastic Premium: instance size, always ready instances, maximum burst |
 | `function_app_settings` | `{}` | application settings |
 | `function_key_secret_name` | `null` | Key Vault secret with the function key (second apply) |
 | `api_path`, `api_version` | `b2bapp`, `v1` | API URL |
@@ -357,5 +415,6 @@ Replace `apim_publisher_email` with a shared mailbox; the change is applied in p
 | `api_base_url` | base URL of the API for the mobile app |
 | `api_management_name` | API Management instance |
 | `function_app_name`, `function_app_hostname` | Function App |
+| `function_hosting` | hosting plan of the Function App |
 | `function_app_storage_account_name` | storage account of the Function App |
 | `principal_ids` | object IDs of the system-assigned identities |

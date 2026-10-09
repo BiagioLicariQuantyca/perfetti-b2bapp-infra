@@ -9,11 +9,12 @@ Develop and test on **dev**; deploy to **prd** only the releases meant for produ
 
 | Item | dev | prd |
 |---|---|---|
-| Function App (Flex Consumption, Linux) | `func-api-b2bapp-dev-weu-001` | `func-api-b2bapp-prd-weu-001` |
+| Function App (Linux) | `func-api-b2bapp-dev-weu-001`, Flex Consumption | `func-api-b2bapp-prd-weu-002`, Elastic Premium |
 | Public URL for clients | `https://apim-b2bapp-dev-weu-001.azure-api.net/b2bapp/v1/<route>` | `https://apim-b2bapp-prd-weu-001.azure-api.net/b2bapp/v1/<route>` |
-| Function URL (not for clients) | `https://func-api-b2bapp-dev-weu-001.azurewebsites.net/api/<route>` | `https://func-api-b2bapp-prd-weu-001.azurewebsites.net/api/<route>` |
+| Function URL (not for clients) | `https://func-api-b2bapp-dev-weu-001.azurewebsites.net/api/<route>` | `https://func-api-b2bapp-prd-weu-002.azurewebsites.net/api/<route>` |
 | Bearer tokens accepted | test tokens (`docs/test-tokens.md`) | Entra External ID only: until then, every request gets 401 |
 | Salesforce | sandbox | production org |
+| Cold starts | yes, after a period without requests (the app scales to zero) | no: one instance is always ready |
 
 | Item | Value |
 |---|---|
@@ -95,7 +96,8 @@ application team.
   `DefaultAzureCredential`, pass its client ID (`identities` output of the `platform` root).
 - **Telemetry** goes to Application Insights automatically. Don't log personal data (names, VAT
   numbers, tokens).
-- **Timer triggers** use **UTC**: `WEBSITE_TIME_ZONE` isn't supported on Flex Consumption.
+- **Timer triggers**: write the schedules in **UTC**. `WEBSITE_TIME_ZONE` isn't supported on
+  Flex Consumption, so dev and prd behave the same only in UTC.
 
 ## Local development
 
@@ -114,16 +116,17 @@ in `local.settings.json`, excluded from Git:
 
 ## Deployment
 
-Flex Consumption supports only package (zip) deployment, authenticated with Microsoft Entra ID:
-publish profiles and basic authentication can't be used. Each team member deploys with their
-own account:
+Both environments use package (zip) deployment, authenticated with Microsoft Entra ID: basic
+authentication is disabled, so publish profiles can't be used. Each team member deploys with
+their own account:
 
 ```bash
 az login --tenant <tenant-id>
 az account set --subscription <subscription-id>
 ```
 
-Then use one of these (shown for dev; for a production release use `func-api-b2bapp-prd-weu-001`):
+Then use one of these (shown for dev; for a production release use `func-api-b2bapp-prd-weu-002`,
+or the `function_app_name` output of the `workload` root):
 
 ```bash
 # Core Tools, from the project folder: builds, packages and deploys
@@ -140,16 +143,16 @@ A deployment always overwrites the whole app with the new package.
 
 ### Rollback
 
-Flex Consumption has no deployment slots. To roll back, deploy the previous package again: keep
-every released package (for example as a build artifact or with a Git tag) so that it can be
-redeployed. The Azure portal has a **Flex Consumption Deployment** diagnostic (app →
+No deployment slots are configured. To roll back, deploy the previous package again: keep every
+released package (for example as a build artifact or with a Git tag) so that it can be
+redeployed. On dev the Azure portal has a **Flex Consumption Deployment** diagnostic (app →
 **Diagnose and solve problems**) with the deployment history.
 
 ### Continuous deployment (later)
 
 Once a service principal or workload identity is available, deployments can move to GitHub
-Actions (OIDC) or Azure Pipelines (workload identity federation), which support Flex
-Consumption package deployment natively.
+Actions (OIDC) or Azure Pipelines (workload identity federation), which support package
+deployment to both hosting plans natively.
 
 ## Testing through API Management
 

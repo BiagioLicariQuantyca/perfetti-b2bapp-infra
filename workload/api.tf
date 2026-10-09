@@ -27,9 +27,9 @@ resource "azurerm_api_management_backend" "func_api" {
   name                = "func-api"
   api_management_name = module.apim.name
   resource_group_name = data.azurerm_resource_group.this.name
-  description         = "Function App ${module.func_api.name}"
+  description         = "Function App ${local.func_api.name}"
   protocol            = "http"
-  url                 = "https://${module.func_api.default_hostname}/api"
+  url                 = "https://${local.func_api.default_hostname}/api"
 
   dynamic "credentials" {
     for_each = azurerm_api_management_named_value.function_key

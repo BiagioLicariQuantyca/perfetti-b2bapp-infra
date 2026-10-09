@@ -60,9 +60,9 @@ works on that subscription even if the CLI points elsewhere.
 ## Conventions
 
 - **Naming**: Cloud Adoption Framework scheme `<type>[-<purpose>]-<workload>-<environment>-<region>-<instance>`,
-  for example `log-b2bapp-prd-weu-001` or `func-api-b2bapp-prd-weu-001`. Storage accounts, which
+  for example `log-b2bapp-prd-weu-001` or `func-api-b2bapp-dev-weu-001`. Storage accounts, which
   do not allow hyphens, use the compact form `st<purpose><workload><environment><region><instance>`,
-  for example `stapib2bappprdweu001`.
+  for example `stapib2bappdevweu001`.
 - **Tags**: every resource inherits the company tags of the resource group, read at every plan.
   The root overrides only `description`.
 - **Secrets**: secret values never go through Terraform, because they would be stored in clear
@@ -130,10 +130,10 @@ The backend uses the same identity, which needs the permissions listed in the pr
 
 ## Environments
 
-| Environment | Purpose | Notes |
-|---|---|---|
-| `dev` | development and tests, by the team and by the developers of the mobile app | accepts test tokens; Salesforce sandbox |
-| `prd` | production | accepts only Entra External ID tokens: until then, every request gets 401 |
+| Environment | Purpose | Function App | Notes |
+|---|---|---|---|
+| `dev` | development and tests, by the team and by the developers of the mobile app | Flex Consumption: scales to zero | accepts test tokens; Salesforce sandbox |
+| `prd` | production | Elastic Premium `EP1`: one instance always ready | accepts only Entra External ID tokens: until then, every request gets 401 |
 
 All environments live in the same resource group and use the same Key Vault. Secrets of a
 single environment end with its name (for example `salesforce-client-secret-dev` or

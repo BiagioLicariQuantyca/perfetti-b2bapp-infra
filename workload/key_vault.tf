@@ -5,7 +5,7 @@
 resource "azurerm_key_vault_access_policy" "func_api" {
   key_vault_id = data.azurerm_key_vault.this.id
   tenant_id    = data.azurerm_key_vault.this.tenant_id
-  object_id    = module.func_api.principal_id
+  object_id    = local.func_api.principal_id
 
   secret_permissions = ["Get"]
 }

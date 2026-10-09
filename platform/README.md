@@ -73,9 +73,9 @@ can be shared by them.
 - Once role assignments are possible, it is the identity for identity-based connections to the
   storage of the Function App, replacing the connection string.
 - Key Vault references in the app settings are resolved by the **system-assigned** identity of
-  the Function App, the default behaviour: the `azurerm` resource for Flex Consumption doesn't
-  expose the setting that selects another identity. Its Key Vault access is granted in the
-  `workload` root.
+  the Function App, the default behaviour, on both hosting plans: the `azurerm` resource for Flex
+  Consumption doesn't expose the setting that selects another identity. Its Key Vault access is
+  granted in the `workload` root.
 - It has no federated credentials.
 - Access granted today: reading secrets on the Key Vault (see below).
 - `client_id` and `principal_id` are in the `identities` output.

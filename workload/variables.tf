@@ -67,6 +67,17 @@ variable "apim_telemetry_sampling_percentage" {
 
 # --- Function App ---
 
+variable "function_hosting" {
+  description = "Hosting plan of the API Function App: flex (Flex Consumption, scales to zero) or premium (Elastic Premium, always ready instances). A change creates a new Function App and deletes the previous one."
+  type        = string
+  default     = "flex"
+
+  validation {
+    condition     = contains(["flex", "premium"], var.function_hosting)
+    error_message = "function_hosting must be flex or premium."
+  }
+}
+
 variable "function_runtime" {
   description = "Language stack of the API Function App. One language per app; change it only before the first code deployment."
   type = object({
@@ -80,21 +91,35 @@ variable "function_runtime" {
 }
 
 variable "function_instance_memory_in_mb" {
-  description = "Instance memory of the API Function App: 512, 2048 or 4096 MB."
+  description = "Flex Consumption: instance memory of the API Function App, 512, 2048 or 4096 MB."
   type        = number
   default     = 2048
 }
 
 variable "function_maximum_instance_count" {
-  description = "Maximum on-demand instances of the API Function App."
+  description = "Flex Consumption: maximum on-demand instances of the API Function App."
   type        = number
   default     = 40
 }
 
 variable "function_always_ready_http_instances" {
-  description = "Always ready instances for HTTP triggers. 0 = scale to zero, with cold starts and no idle cost."
+  description = "Flex Consumption: always ready instances for HTTP triggers. 0 = scale to zero, with cold starts and no idle cost."
   type        = number
   default     = 0
+}
+
+variable "function_premium" {
+  description = <<-EOT
+    Elastic Premium: instance size (EP1, EP2 or EP3, can be changed in place), always ready
+    instances (1-20, billed even when idle) and maximum burst (instances added under load, billed
+    only while allocated).
+  EOT
+  type = object({
+    sku_name               = optional(string, "EP1")
+    always_ready_instances = optional(number, 1)
+    maximum_instance_count = optional(number, 20)
+  })
+  default = {}
 }
 
 variable "function_app_settings" {
@@ -106,10 +131,11 @@ variable "function_app_settings" {
     condition = alltrue([
       for key in keys(var.function_app_settings) : !contains([
         "AzureWebJobsStorage", "DEPLOYMENT_STORAGE_CONNECTION_STRING",
+        "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING", "WEBSITE_CONTENTSHARE", "WEBSITE_RUN_FROM_PACKAGE",
         "APPLICATIONINSIGHTS_CONNECTION_STRING", "FUNCTIONS_WORKER_RUNTIME", "FUNCTIONS_EXTENSION_VERSION",
       ], key)
     ])
-    error_message = "Platform settings (storage, Application Insights, runtime) are managed by Terraform and cannot be overridden in function_app_settings."
+    error_message = "Platform settings (storage, deployment, Application Insights, runtime) are managed by Terraform and cannot be overridden in function_app_settings."
   }
 }
 

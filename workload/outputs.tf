@@ -8,21 +8,26 @@ output "api_management_name" {
 }
 
 output "function_app_name" {
-  value = module.func_api.name
+  value = local.func_api.name
 }
 
 output "function_app_hostname" {
-  value = module.func_api.default_hostname
+  value = local.func_api.default_hostname
 }
 
 output "function_app_storage_account_name" {
-  value = module.func_api.storage_account_name
+  value = local.func_api.storage_account_name
+}
+
+output "function_hosting" {
+  description = "Hosting plan of the Function App: flex or premium."
+  value       = var.function_hosting
 }
 
 output "principal_ids" {
   description = "Object IDs of the system-assigned identities."
   value = {
     api_management = module.apim.principal_id
-    function_app   = module.func_api.principal_id
+    function_app   = local.func_api.principal_id
   }
 }

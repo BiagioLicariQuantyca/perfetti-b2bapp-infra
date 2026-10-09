@@ -10,6 +10,9 @@ apim_publisher_name  = "Perfetti Van Melle"
 apim_publisher_email = "biagio.licari@quantyca.it" # temporary: replace with a shared mailbox
 
 # --- Function App ---
+# Flex Consumption: scales to zero, no cost while idle.
+function_hosting = "flex"
+
 # For Python: { name = "python", version = "3.13" }. Change only before the first deployment.
 function_runtime = {
   name    = "dotnet-isolated"

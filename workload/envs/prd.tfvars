@@ -10,14 +10,22 @@ apim_publisher_name  = "Perfetti Van Melle"
 apim_publisher_email = "biagio.licari@quantyca.it" # temporary: replace with a shared mailbox
 
 # --- Function App ---
+# Elastic Premium: always ready instances, no cold starts, billed for at least one instance.
+# The switch from flex creates func-api-b2bapp-prd-weu-002 and deletes the Flex Consumption app:
+# see "Change the hosting plan" in the README.
+function_hosting = "premium"
+
 # For Python: { name = "python", version = "3.13" }. Change only before the first deployment.
 function_runtime = {
   name    = "dotnet-isolated"
   version = "10.0"
 }
-function_instance_memory_in_mb       = 2048
-function_maximum_instance_count      = 40
-function_always_ready_http_instances = 0
+
+function_premium = {
+  sku_name               = "EP1"
+  always_ready_instances = 1
+  maximum_instance_count = 20
+}
 
 # Non-secret values and Key Vault references only. The Key Vault is shared with the other
 # environments: suffix the secret names with the environment, for example:
